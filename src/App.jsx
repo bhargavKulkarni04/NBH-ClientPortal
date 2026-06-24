@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Component as LoginPage } from './components/ui/animated-characters-login-page';
+import { LoginPage } from './components/ui/LoginPage.jsx';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
@@ -177,7 +177,7 @@ export default function App() {
     return (
       <LoginPage 
         onLogin={handleLoginDirect} 
-        error={error} 
+        error={error}
       />
     );
   }
