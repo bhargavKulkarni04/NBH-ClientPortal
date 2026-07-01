@@ -11,28 +11,13 @@ import {
 import * as XLSX from 'xlsx';
 
 // Leads mock data (fallback if Sheets server is offline)
-const TVS_LEADS_MOCK = [
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "jkumar.mail63@gmail.com", name: "Jitendra kumar", phone: "+917760150410", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:12", subSource: "Digital" },
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "yadavmonica8@gmail.com", name: "Mangala J", phone: "+917259206049", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:18", subSource: "3 BHK @ 1.91 Crore*" },
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "chsr1910@gmail.com", name: "Satish Kumar Reddy", phone: "+919972685527", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:25", subSource: "3 BHK @ 1.91 Crore*" },
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "abhishek306@gmail.com", name: "Abhishek Dasgupta", phone: "+919880038717", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:32", subSource: "Digital" },
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "drbithicgo@gmail.com", name: "SANA MAZUMDER", phone: "+918088568012", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:40", subSource: "Digital" }
-];
 
-const BHARTIYA_LEADS_MOCK = [
-  { id: "G_8a96c382823b63ac01823d7ddf7e03de", email: "sachindrams@gmail.com", name: "SACHINDRA SOPPANNA", phone: "+919886605797", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-06 12:22:23", subSource: "Gmail Fetch" },
-  { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "nrai2911@gmail.com", name: "Neha Rai Bhagat", phone: "+917021929186", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-06 12:34:10", subSource: "Gmail Fetch" }
-];
 
-const TVS_CHART_MOCK = [
-  { date: 'June 04', leads: 7 }, { date: 'June 05', leads: 12 }, { date: 'June 06', leads: 9 },
-  { date: 'June 07', leads: 18 }, { date: 'June 08', leads: 15 }
-];
 
-const BHARTIYA_CHART_MOCK = [
-  { date: 'June 03', leads: 8 }, { date: 'June 04', leads: 6 },
-  { date: 'June 05', leads: 14 }, { date: 'June 06', leads: 11 }
-];
+
+
+
+
 
 // ==========================================
 // SVG Sparkline Component
@@ -455,22 +440,7 @@ export default function App() {
         </div>
 
         {/* Navigation */}
-        <nav className="cp-sidebar-nav">
-          <button
-            className={`cp-nav-item ${activeTab === 'campaigns' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('campaigns'); setCurrentPage(1); }}
-          >
-            <Megaphone className="cp-nav-icon" size={20} />
-            <span>My Campaigns</span>
-          </button>
-          <button
-            className={`cp-nav-item ${activeTab === 'leads' ? 'active' : ''}`}
-            onClick={() => setActiveTab('leads')}
-          >
-            <Users className="cp-nav-icon" size={20} />
-            <span>Leads</span>
-          </button>
-        </nav>
+        
 
         {/* Support Card */}
         <div className="cp-support-card">
@@ -484,7 +454,7 @@ export default function App() {
             <p>Our support team is here to assist you.</p>
             <button
               className="cp-support-btn"
-              onClick={() => window.location.href = 'mailto:support@nobrokerhood.com'}
+              onClick={() => alert('Email: Bhargav.s@nobroker.in\\nPhone: 8618818322')}
             >
               <Headphones size={18} />
               Contact Support
@@ -498,6 +468,7 @@ export default function App() {
         {/* ── Header ── */}
         <header className="cp-header">
           <div className="cp-header-left">
+            <img src="/nbh_logo.png" alt="NoBrokerHood" className="mobile-logo" />
             <h1>Welcome back, {clientName}! 👋</h1>
             <p>Here's what's happening with your campaigns.</p>
           </div>
@@ -534,9 +505,8 @@ export default function App() {
 
         {/* ── Content Body ── */}
         <div className="cp-content">
-          {activeTab === 'campaigns' ? (
-            /* ═══════════ CAMPAIGNS VIEW ═══════════ */
-            <>
+          /* CAMPAIGNS VIEW */
+          <>
 
 
               {/* Metrics Grid */}
@@ -544,9 +514,7 @@ export default function App() {
                 {/* Total Impressions */}
                 <div className="cp-metric-card">
                   <div className="cp-metric-left">
-                    <div className="cp-metric-icon impressions">
-                      <Eye size={20} />
-                    </div>
+                    
                     <div className="cp-metric-info">
                       <h5>Total Impressions</h5>
                       <div className="cp-metric-value">{formatNum(campaignMetrics.totalImpressions)}</div>
@@ -557,9 +525,7 @@ export default function App() {
                 {/* Total Clicks */}
                 <div className="cp-metric-card">
                   <div className="cp-metric-left">
-                    <div className="cp-metric-icon clicks">
-                      <MousePointer size={20} />
-                    </div>
+                    
                     <div className="cp-metric-info">
                       <h5>Total Clicks</h5>
                       <div className="cp-metric-value">{formatNum(campaignMetrics.totalClicks)}</div>
@@ -570,9 +536,7 @@ export default function App() {
                 {/* Average CTR */}
                 <div className="cp-metric-card">
                   <div className="cp-metric-left">
-                    <div className="cp-metric-icon ctr">
-                      <TrendingUp size={20} />
-                    </div>
+                    
                     <div className="cp-metric-info">
                       <h5>Average CTR</h5>
                       <div className="cp-metric-value">{campaignMetrics.avgCTR}%</div>
@@ -583,9 +547,7 @@ export default function App() {
                 {/* Total Campaigns */}
                 <div className="cp-metric-card">
                   <div className="cp-metric-left">
-                    <div className="cp-metric-icon campaigns">
-                      <Megaphone size={20} />
-                    </div>
+                    
                     <div className="cp-metric-info">
                       <h5>Total Campaigns</h5>
                       <div className="cp-metric-value">{campaignMetrics.totalCampaigns}</div>
@@ -764,163 +726,6 @@ export default function App() {
                 </div>
               </div>
             </>
-          ) : (
-            /* ═══════════ LEADS VIEW (Existing Dashboard) ═══════════ */
-            <>
-              {/* Metrics */}
-              <div className="metrics-grid">
-                <div className="metric-card">
-                  <div className="metric-info">
-                    <h5>Total Leads Processed</h5>
-                    <div className="metric-value">{leadsStats.total}</div>
-                    <div className="metric-trend trend-up">+12% this week</div>
-                  </div>
-                  <div className="metric-icon"><Users size={24} /></div>
-                </div>
-                <div className="metric-card">
-                  <div className="metric-info">
-                    <h5>Salesforce Sync Success</h5>
-                    <div className="metric-value">{leadsStats.successRate}%</div>
-                    <div className="metric-trend trend-up">Optimal performance</div>
-                  </div>
-                  <div className="metric-icon" style={{ color: '#10b981' }}><CheckCircle size={24} /></div>
-                </div>
-                <div className="metric-card">
-                  <div className="metric-info">
-                    <h5>Pending Drip Queue</h5>
-                    <div className="metric-value">{leadsStats.pending}</div>
-                    <div className="metric-trend" style={{ color: '#d97706' }}>Waiting to dispatch</div>
-                  </div>
-                  <div className="metric-icon" style={{ color: '#d97706' }}><Clock size={24} /></div>
-                </div>
-              </div>
-
-              <div className="dashboard-row">
-                {/* Chart */}
-                <div className="card-panel">
-                  <div className="card-header">
-                    <h3>Leads Received Trend</h3>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Last 7 Days</span>
-                  </div>
-                  <div style={{ width: '100%', height: 260 }}>
-                    {loading ? (
-                      <div className="spinner-container"><div className="spinner" /><p>Fetching chart data...</p></div>
-                    ) : (
-                      <ResponsiveContainer>
-                        <LineChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-                          <YAxis stroke="#94a3b8" fontSize={12} />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="leads" stroke="var(--nbh-teal)" strokeWidth={3} activeDot={{ r: 8 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </div>
-
-                {/* Drip Config */}
-                <div className="card-panel">
-                  <div className="card-header"><h3>Drip Configuration</h3></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div className="config-setting-row">
-                      <div className="setting-info"><h4>Min Drip Delay</h4><p>Minimum delay before next push</p></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="number" className="filter-select" style={{ width: '70px', padding: '6px' }} value={minDelay} onChange={(e) => setMinDelay(Number(e.target.value))} />
-                        <span style={{ fontSize: '0.9rem' }}>mins</span>
-                      </div>
-                    </div>
-                    <div className="config-setting-row">
-                      <div className="setting-info"><h4>Max Drip Delay</h4><p>Maximum delay before next push</p></div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input type="number" className="filter-select" style={{ width: '70px', padding: '6px' }} value={maxDelay} onChange={(e) => setMaxDelay(Number(e.target.value))} />
-                        <span style={{ fontSize: '0.9rem' }}>{campaign === 'tvs' ? 'mins' : 'hrs'}</span>
-                      </div>
-                    </div>
-                    <div className="config-setting-row">
-                      <div className="setting-info"><h4>Automation Engine</h4><p>Main cron/scheduler running</p></div>
-                      <span className="status-badge success">Active</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Leads Table */}
-              <div className="card-panel">
-                <div className="card-header" style={{ marginBottom: '24px' }}>
-                  <h3>Live Ingestion Log</h3>
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => fetchLeads(campaign)} className="card-action-btn" style={{ padding: '10px 20px' }} disabled={loading}>
-                      <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                      <span>Refresh Sync</span>
-                    </button>
-                    <button onClick={handleExportLeads} className="form-button" style={{ width: 'auto', padding: '10px 20px' }}>
-                      <Download size={18} />
-                      <span>Export to Excel</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="filter-bar">
-                  <div className="input-wrapper filter-search">
-                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-secondary)' }} />
-                    <input type="text" className="form-input" placeholder="Search by name, phone..." style={{ paddingLeft: '40px' }} value={search} onChange={(e) => setSearch(e.target.value)} />
-                  </div>
-                  <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                    <option value="All">All Ingestion Statuses</option>
-                    <option value="Success">Success (Sync)</option>
-                    <option value="Failed">Failed (Sync)</option>
-                  </select>
-                </div>
-
-                {loading ? (
-                  <div className="spinner-container"><div className="spinner" /><p>Syncing live database rows from Google Sheet...</p></div>
-                ) : (
-                  <div className="table-container">
-                    <table className="nbh-table">
-                      <thead>
-                        <tr>
-                          <th>Lead Name</th>
-                          <th>Mobile</th>
-                          <th>Email Address</th>
-                          <th>Region</th>
-                          <th>Preference (20% logic)</th>
-                          <th>Ingestion Status</th>
-                          <th>Sync Timestamp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredLeads.map((lead, idx) => (
-                          <tr key={idx}>
-                            <td style={{ fontWeight: '600' }}>{lead.name}</td>
-                            <td>{lead.phone}</td>
-                            <td>{lead.email || '—'}</td>
-                            <td>{lead.city}</td>
-                            <td>
-                              <span className="campaign-badge" style={{ backgroundColor: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#f1f5f9' : 'var(--nbh-teal-light)', color: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#64748b' : 'var(--nbh-teal)' }}>
-                                {lead.subSource}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`status-badge ${lead.status === 'Success' ? 'success' : 'failed'}`}>{lead.status}</span>
-                            </td>
-                            <td style={{ color: 'var(--text-secondary)' }}>{lead.timestamp}</td>
-                          </tr>
-                        ))}
-                        {filteredLeads.length === 0 && (
-                          <tr>
-                            <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
-                              No leads found matching current filters.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
         </div>
       </main>
     </div>

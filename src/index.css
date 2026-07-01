@@ -1226,7 +1226,7 @@ body {
 }
 
 /* Table */
-.table-container {
+.cp-table-container {
   overflow-x: auto;
   margin-top: 16px;
   border: 1px solid var(--nbh-border);
@@ -1531,3 +1531,25 @@ body {
     text-align: center;
   }
 }
+
+
+/* =========================================================
+   MOBILE RESPONSIVE OVERRIDES
+   ========================================================= */
+.mobile-logo { display: none; }
+@media (max-width: 768px) {
+  .mobile-logo { display: block !important; height: 32px; margin-bottom: 16px; margin-top: 4px; }
+  .cp-layout { flex-direction: column; padding-bottom: 0; }
+  .cp-sidebar { display: none !important; }
+  .cp-header { flex-direction: column; align-items: stretch; gap: 16px; padding: 16px; min-height: auto; }
+  .cp-header-left h1 { font-size: 1.25rem; line-height: 1.4; padding-top: 4px; margin-top: 0; }
+  .cp-header-right { width: 100%; justify-content: flex-start; }
+  .cp-notif-btn { display: none !important; }
+  .cp-main { padding: 0 12px 24px 12px; }
+  .cp-metrics-grid { grid-template-columns: 1fr; gap: 12px; }
+  .card-panel { padding: 16px; }
+  .cp-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+  .cp-table { min-width: 800px; }
+  .cp-filter-bar { display: none !important; }
+}
+
