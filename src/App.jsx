@@ -1,17 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LoginPage } from './components/ui/LoginPage.jsx';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { 
-  Download, Search, Filter, LogOut, Settings, Users, CheckCircle, RefreshCw, Clock, AlertTriangle 
+import {
+  Download, Search, Filter, LogOut, Users, CheckCircle, RefreshCw,
+  Clock, Bell, ChevronDown, ChevronLeft, ChevronRight,
+  MoreVertical, Calendar, Eye, MousePointer, TrendingUp, Megaphone, Headphones
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// ==========================================
-// MOCK DATA FALLBACKS (If backend offline)
-// ==========================================
-
+// Leads mock data (fallback if Sheets server is offline)
 const TVS_LEADS_MOCK = [
   { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "jkumar.mail63@gmail.com", name: "Jitendra kumar", phone: "+917760150410", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:12", subSource: "Digital" },
   { id: "G_8a968f829e6fa59d019e72ec202b0d73", email: "yadavmonica8@gmail.com", name: "Mangala J", phone: "+917259206049", city: "Bangalore", sent: "True", status: "Success", timestamp: "2026-06-08 12:46:18", subSource: "3 BHK @ 1.91 Crore*" },
@@ -26,92 +25,207 @@ const BHARTIYA_LEADS_MOCK = [
 ];
 
 const TVS_CHART_MOCK = [
-  { date: 'June 04', leads: 7 },
-  { date: 'June 05', leads: 12 },
-  { date: 'June 06', leads: 9 },
-  { date: 'June 07', leads: 18 },
-  { date: 'June 08', leads: 15 }
+  { date: 'June 04', leads: 7 }, { date: 'June 05', leads: 12 }, { date: 'June 06', leads: 9 },
+  { date: 'June 07', leads: 18 }, { date: 'June 08', leads: 15 }
 ];
 
 const BHARTIYA_CHART_MOCK = [
-  { date: 'June 03', leads: 8 },
-  { date: 'June 04', leads: 6 },
-  { date: 'June 05', leads: 14 },
-  { date: 'June 06', leads: 11 }
+  { date: 'June 03', leads: 8 }, { date: 'June 04', leads: 6 },
+  { date: 'June 05', leads: 14 }, { date: 'June 06', leads: 11 }
 ];
 
+// ==========================================
+// SVG Sparkline Component
+// ==========================================
+function Sparkline({ data, color = '#10B981', width = 80, height = 40 }) {
+  if (!data || data.length < 2) {
+    // Return a dummy path if not enough points
+    return (
+      <svg className="cp-sparkline" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+        <path d={`M0,${height / 2} L${width},${height / 2}`} stroke={color} strokeWidth="2" fill="none" />
+      </svg>
+    );
+  }
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 6) - 3;
+    return `${x},${y}`;
+  });
+
+  const linePath = `M${points.join(' L')}`;
+  const fillPath = `${linePath} L${width},${height} L0,${height} Z`;
+
+  return (
+    <svg className="cp-sparkline" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <path d={fillPath} className="spark-fill" fill={color} style={{ opacity: 0.08, stroke: 'none' }} />
+      <path d={linePath} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ==========================================
+// MAIN APP
+// ==========================================
+
 export default function App() {
+  // Master Campaigns Data List loaded from public/LIVECampaign.json
+  const [campaignsList, setCampaignsList] = useState([]);
+
+  // Auth states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  
-  // App states
-  const [campaign, setCampaign] = useState(''); // 'tvs' or 'bhartiya'
+  const [campaign, setCampaign] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [clientInitials, setClientInitials] = useState('');
+  const [activeBrand, setActiveBrand] = useState(''); // Brand name to filter campaigns by
+  const [activeEventId, setActiveEventId] = useState(''); // Specific campaign ID if campaign-specific login
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState('campaigns');
+
+  // Campaign view states
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState('All');
+  const [campaignStartDate, setCampaignStartDate] = useState('');
+  const [campaignEndDate, setCampaignEndDate] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(7);
+
+  // Leads view states
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  
-  // Drip feed settings (interactive simulations)
-  const [minDelay, setMinDelay] = useState(10);
-  const [maxDelay, setMaxDelay] = useState(120);
-
-  // Live Sheets API States
   const [leads, setLeads] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [backendError, setBackendError] = useState('');
 
-  // Authentication logic
-  const handleLoginDirect = async (email, password) => {
+  // Drip feed settings
+  const [minDelay, setMinDelay] = useState(10);
+  const [maxDelay, setMaxDelay] = useState(120);
+
+  // Load Campaigns JSON on Mount
+  useEffect(() => {
+    fetch('/LIVECampaign.json')
+      .then(res => res.json())
+      .then(data => {
+        setCampaignsList(data || []);
+      })
+      .catch(err => {
+        console.error("Failed to load campaigns list:", err);
+      });
+  }, []);
+
+  // ── Authentication ──
+  const handleLoginDirect = async (email, passwordInput) => {
     setError('');
-    
-    if (email === 'tvs@nobrokerhood.com' && password === 'tvs123') {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // 1. Check master admin account
+    if (cleanEmail === 'admin@nobrokerhood.com' && passwordInput === 'admin123') {
       setIsLoggedIn(true);
-      setCampaign('tvs');
-      setMinDelay(10);
-      setMaxDelay(120);
+      setIsAdmin(true);
+      setCampaign('bhartiya'); // Fallback sheet campaign for Leads tab
+      setClientName('Administrator');
+      setClientInitials('ADM');
+      setActiveBrand(''); // Shows all campaigns
+      setActiveEventId('');
       return true;
-    } else if (email === 'bhartiya@nobrokerhood.com' && password === 'bhartiya123') {
-      setIsLoggedIn(true);
-      setCampaign('bhartiya');
-      setMinDelay(1);
-      setMaxDelay(180);
-      return true;
-    } else {
-      setError('Invalid email or password. Please use partner login credentials.');
-      return false;
     }
+
+    // 2. Check campaign-specific credentials in LIVECampaign.json
+    const matched = campaignsList.find(c =>
+      c.credentials &&
+      c.credentials.userId.toLowerCase() === cleanEmail &&
+      c.credentials.password === passwordInput
+    );
+
+    if (matched) {
+      setIsLoggedIn(true);
+      setIsAdmin(false);
+
+      // Determine sheet campaign name for leads tab (fallback mapping)
+      const brandLower = matched.brandName.toLowerCase();
+      if (brandLower.includes('tvs')) {
+        setCampaign('tvs');
+      } else if (brandLower.includes('bhartiya')) {
+        setCampaign('bhartiya');
+      } else {
+        setCampaign('bhartiya');
+      }
+
+      setClientName(matched.brandName); // Changed to use Brand Name instead of Event ID as per request
+
+      // Initials helper
+      const initials = matched.eventId.substring(0, 3).toUpperCase();
+      setClientInitials(initials || 'PT');
+
+      setActiveBrand(matched.brandName);
+      setActiveEventId(matched.eventId); // Lock dashboard to this eventId
+      return true;
+    }
+
+    // 3. Fallback compatibility credentials
+    if (cleanEmail === 'tvs@nobrokerhood.com' && passwordInput === 'tvs123') {
+      setIsLoggedIn(true);
+      setIsAdmin(false);
+      setCampaign('tvs');
+      setClientName('TVS Emerald');
+      setClientInitials('TE');
+      setActiveBrand('TVS EMERALDS');
+      setActiveEventId('');
+      return true;
+    } else if (cleanEmail === 'bhartiya@nobrokerhood.com' && passwordInput === 'bhartiya123') {
+      setIsLoggedIn(true);
+      setIsAdmin(false);
+      setCampaign('bhartiya');
+      setClientName('Bhartiya City');
+      setClientInitials('BC');
+      setActiveBrand('BHARTIYA CITY');
+      setActiveEventId('');
+      return true;
+    }
+
+    setError('Invalid User ID or Password. Use admin credentials or campaign credentials (e.g. cp7949bhartiya_may29 / BhartiyaCity@2026).');
+    return false;
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setShowLogin(false);
-    setUsername('');
-    setPassword('');
+    setIsAdmin(false);
+    setCampaign('');
+    setClientName('');
+    setClientInitials('');
+    setActiveBrand('');
+    setActiveEventId('');
     setSearch('');
     setStatusFilter('All');
     setLeads([]);
     setChartData([]);
+    setActiveTab('campaigns');
+    setCampaignSearch('');
+    setCampaignStatusFilter('All');
+    setCurrentPage(1);
   };
 
-  // Fetch from the live backend server
+  // ── Leads Fetch ──
   const fetchLeads = async (campaignName) => {
     if (!campaignName) return;
     setLoading(true);
     setBackendError('');
     try {
       const res = await fetch(`http://localhost:8000/api/leads?campaign=${campaignName}`);
-      if (!res.ok) {
-        throw new Error('Failed to retrieve sheet data');
-      }
+      if (!res.ok) throw new Error('Failed to retrieve sheet data');
       const data = await res.json();
       setLeads(data.leads || []);
       setChartData(data.chartData || []);
     } catch (err) {
-      console.error("Error fetching live leads from sheets:", err);
+      console.error("Error fetching live leads:", err);
       setBackendError('Could not sync with Google Sheets API server. Showing cached data.');
-      // fallback to mock
       setLeads(campaignName === 'tvs' ? TVS_LEADS_MOCK : BHARTIYA_LEADS_MOCK);
       setChartData(campaignName === 'tvs' ? TVS_CHART_MOCK : BHARTIYA_CHART_MOCK);
     } finally {
@@ -120,345 +234,694 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isLoggedIn && campaign) {
+    if (isLoggedIn && campaign && activeTab === 'leads') {
       fetchLeads(campaign);
     }
-  }, [isLoggedIn, campaign]);
+  }, [isLoggedIn, campaign, activeTab]);
 
-  // Filters logic
+  // ── Brand/Campaign Campaigns Scoping ──
+  const brandCampaigns = useMemo(() => {
+    return campaignsList.filter(c => {
+      if (activeEventId) {
+        return c.eventId === activeEventId; // Specific campaign scope
+      }
+      if (!activeBrand) return true; // Admin views all
+      return c.brandName.toLowerCase() === activeBrand.toLowerCase(); // Brand scope
+    });
+  }, [campaignsList, activeBrand, activeEventId]);
+
+  // ── Campaign Filters & Pagination ──
+  const tableData = useMemo(() => {
+    if (activeEventId) {
+      // Single campaign view: show dayWise data
+      const campaign = brandCampaigns[0];
+      if (!campaign || !campaign.dayWise) return [];
+
+      let days = campaign.dayWise;
+
+      // Filter by date range if provided
+      if (campaignStartDate) {
+        const start = new Date(campaignStartDate);
+        days = days.filter(d => new Date(d.date) >= start);
+      }
+      if (campaignEndDate) {
+        const end = new Date(campaignEndDate);
+        days = days.filter(d => new Date(d.date) <= end);
+      }
+
+      return days.map(d => ({
+        isDayRow: true,
+        eventId: campaign.eventId,
+        brandName: campaign.brandName,
+        date: d.date,
+        impressions: d.impressions,
+        clicks: d.clicks,
+        ctr: d.impressions > 0 ? ((d.clicks / d.impressions) * 100).toFixed(2) + "%" : "0.00%",
+        eventStatus: campaign.eventStatus
+      })).reverse(); // Reverse to show newest dates first
+    } else {
+      // Multi-campaign view: show campaigns
+      let camps = brandCampaigns.filter(c => {
+        const matchesSearch =
+          c.eventId.toLowerCase().includes(campaignSearch.toLowerCase()) ||
+          c.brandName.toLowerCase().includes(campaignSearch.toLowerCase());
+        // For admin, we might still respect the "All" status filter, or default to Live. 
+        // We will ignore campaignStatusFilter since it's hardcoded to Live now in UI, but keep the logic for safety.
+        return matchesSearch;
+      });
+
+      // Filter by date range (using campaign start date)
+      if (campaignStartDate) {
+        const start = new Date(campaignStartDate);
+        camps = camps.filter(c => new Date(c.campaignStart) >= start);
+      }
+      if (campaignEndDate) {
+        const end = new Date(campaignEndDate);
+        camps = camps.filter(c => new Date(c.campaignStart) <= end);
+      }
+
+      return camps.map(c => ({
+        isDayRow: false,
+        ...c
+      }));
+    }
+  }, [brandCampaigns, activeEventId, campaignSearch, campaignStartDate, campaignEndDate]);
+
+  const totalPages = Math.ceil(tableData.length / itemsPerPage);
+  const paginatedData = tableData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // ── Campaigns Metrics Panel Calculations ──
+  const campaignMetrics = useMemo(() => {
+    const totalImpressions = brandCampaigns.reduce((s, c) => s + c.totalImpressions, 0);
+    const totalClicks = brandCampaigns.reduce((s, c) => s + c.totalClicks, 0);
+    const avgCTR = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : '0.00';
+    return {
+      totalImpressions,
+      totalClicks,
+      avgCTR,
+      totalCampaigns: brandCampaigns.length
+    };
+  }, [brandCampaigns]);
+
+  // ── Dynamic Daily Sparkline Timeline Data ──
+  const brandDailyTimeline = useMemo(() => {
+    const datesMap = {};
+    brandCampaigns.forEach(c => {
+      if (c.dayWise) {
+        c.dayWise.forEach(d => {
+          const dt = d.date;
+          if (!datesMap[dt]) {
+            datesMap[dt] = { date: dt, impressions: 0, clicks: 0 };
+          }
+          datesMap[dt].impressions += d.impressions;
+          datesMap[dt].clicks += d.clicks;
+        });
+      }
+    });
+
+    // Helper to parse date strings (m/d/yyyy) safely for sorting
+    const parseDateStr = (s) => {
+      const parts = s.split('/');
+      if (parts.length === 3) {
+        return new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+      }
+      return new Date(s);
+    };
+
+    return Object.values(datesMap).sort((a, b) => parseDateStr(a.date) - parseDateStr(b.date));
+  }, [brandCampaigns]);
+
+  const sparklineImpressions = useMemo(() => {
+    const data = brandDailyTimeline.map(d => d.impressions);
+    return data.length >= 2 ? data : [0, 0];
+  }, [brandDailyTimeline]);
+
+  const sparklineClicks = useMemo(() => {
+    const data = brandDailyTimeline.map(d => d.clicks);
+    return data.length >= 2 ? data : [0, 0];
+  }, [brandDailyTimeline]);
+
+  const sparklineCTR = useMemo(() => {
+    const data = brandDailyTimeline.map(d => d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0);
+    return data.length >= 2 ? data : [0, 0];
+  }, [brandDailyTimeline]);
+
+  const sparklineCampaigns = useMemo(() => {
+    const data = brandCampaigns.map((_, i) => i + 1);
+    return data.length >= 2 ? data : [0, 0];
+  }, [brandCampaigns]);
+
+  // ── Leads Filters ──
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      const matchesSearch = 
-        (lead.name || '').toLowerCase().includes(search.toLowerCase()) || 
+      const matchesSearch =
+        (lead.name || '').toLowerCase().includes(search.toLowerCase()) ||
         (lead.email || '').toLowerCase().includes(search.toLowerCase()) ||
         (lead.phone || '').includes(search);
-      
       const matchesStatus = statusFilter === 'All' || lead.status === statusFilter;
-      
       return matchesSearch && matchesStatus;
     });
   }, [leads, search, statusFilter]);
 
-  // Metric aggregates
-  const stats = useMemo(() => {
+  const leadsStats = useMemo(() => {
     const total = leads.length;
     const successCount = leads.filter(l => l.status === 'Success').length;
     const successRate = total > 0 ? ((successCount / total) * 100).toFixed(0) : 100;
-    
-    // Approximate queue
     const pending = campaign === 'tvs' ? 14 : 3;
-    
-    return {
-      total,
-      successRate,
-      pending
-    };
+    return { total, successRate, pending };
   }, [leads, campaign]);
 
-  // Export to Excel logic using xlsx
-  const handleExportExcel = () => {
+  // ── Export ──
+  const handleExportCampaigns = () => {
+    const ws = XLSX.utils.json_to_sheet(tableData.map(c =>
+      c.isDayRow ? {
+        'Event ID': c.eventId,
+        'Brand Name': c.brandName,
+        'Date': c.date,
+        'Impressions': c.impressions,
+        'Clicks': c.clicks,
+        'CTR': c.ctr,
+        'Status': 'Live'
+      } : {
+        'Event ID': c.eventId,
+        'Impressions': c.totalImpressions,
+        'Clicks': c.totalClicks,
+        'CTR': c.ctr,
+        'Status': c.eventStatus,
+        'Campaign Start': c.campaignStart,
+        'Brand Name': c.brandName,
+        'Imp Req': c.impReq,
+        'Req CTR': c.reqCTR,
+        'Click Req': c.clickReq
+      }
+    ));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Campaigns");
+    XLSX.writeFile(wb, `NBH_Campaigns_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const handleExportLeads = () => {
     const ws = XLSX.utils.json_to_sheet(filteredLeads.map(l => ({
-      'Lead ID': l.id,
-      'Name': l.name,
-      'Email': l.email,
-      'Phone': l.phone,
-      'City': l.city,
-      'Typeform/Preference': l.subSource,
-      'Sync Status': l.status,
-      'Logged At': l.timestamp
+      'Lead ID': l.id, 'Name': l.name, 'Email': l.email,
+      'Phone': l.phone, 'City': l.city, 'Typeform/Preference': l.subSource,
+      'Sync Status': l.status, 'Logged At': l.timestamp
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leads Export");
-    XLSX.writeFile(wb, `NBH_${campaign === 'tvs' ? 'TVS_Emerald' : 'Bhartiya_City'}_Leads_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `NBH_${campaign === 'tvs' ? 'TVS_Emerald' : 'Bhartiya_City'}_Leads_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Rendering direct login page
+  // Format number helper
+  const formatNum = (n) => {
+    return n.toLocaleString('en-IN');
+  };
+
+  // ── Render: Login ──
   if (!isLoggedIn) {
-    return (
-      <LoginPage 
-        onLogin={handleLoginDirect} 
-        error={error}
-      />
-    );
+    return <LoginPage onLogin={handleLoginDirect} error={error} />;
   }
 
+  // ── Render: Dashboard ──
   return (
-    <div className="dashboard-container animate-fade">
-      {/* Sidebar Section */}
-      <aside className="sidebar">
-        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px' }}>
-          <img src="/nbh_logo.png" alt="NoBrokerHood Logo" style={{ height: '24px', width: 'auto', filter: 'brightness(0) invert(1)' }} />
-          <span style={{ color: 'white', fontWeight: '800', fontSize: '1.1rem', letterSpacing: '-0.3px' }}>Partner</span>
+    <div className="cp-layout animate-fade">
+      {/* ════════════ SIDEBAR ════════════ */}
+      <aside className="cp-sidebar">
+        {/* Logo */}
+        <div className="cp-sidebar-logo">
+          <img src="/nbh_logo.png" alt="NoBrokerHood" style={{ filter: 'none' }} />
         </div>
 
-        <ul className="sidebar-menu">
-          <li className="sidebar-item active">
-            <Users size={18} />
-            <span>Campaign Leads</span>
-          </li>
-          <li className="sidebar-item">
-            <Settings size={18} />
-            <span>Drip Configuration</span>
-          </li>
-        </ul>
-
-        <div className="sidebar-footer">
-          <div className="user-profile">
-            <div className="user-avatar">
-              {campaign === 'tvs' ? 'TVS' : 'BC'}
-            </div>
-            <div className="user-info">
-              <h4>{campaign === 'tvs' ? 'TVS Emerald' : 'Bhartiya City'}</h4>
-              <p>Active Campaign Partner</p>
-            </div>
-          </div>
-          
-          <button onClick={handleLogout} className="logout-btn">
-            <LogOut size={16} />
-            <span>Sign Out</span>
+        {/* Navigation */}
+        <nav className="cp-sidebar-nav">
+          <button
+            className={`cp-nav-item ${activeTab === 'campaigns' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('campaigns'); setCurrentPage(1); }}
+          >
+            <Megaphone className="cp-nav-icon" size={20} />
+            <span>My Campaigns</span>
           </button>
+          <button
+            className={`cp-nav-item ${activeTab === 'leads' ? 'active' : ''}`}
+            onClick={() => setActiveTab('leads')}
+          >
+            <Users className="cp-nav-icon" size={20} />
+            <span>Leads</span>
+          </button>
+        </nav>
+
+        {/* Support Card */}
+        <div className="cp-support-card">
+          <img
+            src="/support-illustration.png"
+            alt="Support Agent"
+            className="cp-support-img"
+          />
+          <div className="cp-support-body">
+            <h4>Need Help?</h4>
+            <p>Our support team is here to assist you.</p>
+            <button
+              className="cp-support-btn"
+              onClick={() => window.location.href = 'mailto:support@nobrokerhood.com'}
+            >
+              <Headphones size={18} />
+              Contact Support
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* Main Content Dashboard */}
-      <main className="main-content">
-        <header className="top-navbar">
-          <h1>Welcome Back, {campaign === 'tvs' ? 'TVS Emerald Portal' : 'Bhartiya City Portal'}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div className="sync-status-indicator">
-              <div className={`pulse-indicator ${backendError ? 'error' : ''}`} />
-              <span style={{ fontSize: '0.85rem', color: backendError ? 'var(--nbh-red)' : 'var(--nbh-slate)', fontWeight: '600' }}>
-                {backendError ? 'Using Cached Sheets Data' : 'Google Sheets API Live'}
-              </span>
-            </div>
-            <div className="campaign-badge">
-              {campaign === 'tvs' ? 'TVS Emerald Altura' : 'Bhartiya City Automation'}
-            </div>
+      {/* ════════════ MAIN CONTENT ════════════ */}
+      <main className="cp-main">
+        {/* ── Header ── */}
+        <header className="cp-header">
+          <div className="cp-header-left">
+            <h1>Welcome back, {clientName}! 👋</h1>
+            <p>Here's what's happening with your campaigns.</p>
+          </div>
+
+          <div className="cp-header-right">
+            {isAdmin && (
+              <select
+                className="cp-filter-select"
+                style={{ padding: '8px 28px 8px 12px', fontSize: '0.82rem', height: '36px' }}
+                value={activeBrand}
+                onChange={(e) => { setActiveBrand(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="">All Brands (Admin)</option>
+                {Array.from(new Set(campaignsList.map(c => c.brandName))).sort().map(brand => (
+                  <option key={brand} value={brand}>{brand}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Notification bell */}
+            <button className="cp-notif-btn" title="Notifications">
+              <Bell size={22} />
+              <span className="cp-notif-badge">3</span>
+            </button>
+
+            {/* Profile / Sign Out */}
+            <button className="cp-profile" onClick={handleLogout} title="Sign Out">
+              <div className="cp-profile-avatar">{clientInitials}</div>
+              <span className="cp-profile-name">{clientName}</span>
+              <LogOut className="cp-profile-chevron" size={16} />
+            </button>
           </div>
         </header>
 
-        <section className="content-body">
-          {/* Metrics Panel Grid */}
-          <div className="metrics-grid">
-            <div className="metric-card">
-              <div className="metric-info">
-                <h5>Total Leads Processed</h5>
-                <div className="metric-value">{stats.total}</div>
-                <div className="metric-trend trend-up">
-                  +12% this week
-                </div>
-              </div>
-              <div className="metric-icon">
-                <Users size={24} />
-              </div>
-            </div>
+        {/* ── Content Body ── */}
+        <div className="cp-content">
+          {activeTab === 'campaigns' ? (
+            /* ═══════════ CAMPAIGNS VIEW ═══════════ */
+            <>
 
-            <div className="metric-card">
-              <div className="metric-info">
-                <h5>Salesforce Sync Success</h5>
-                <div className="metric-value">{stats.successRate}%</div>
-                <div className="metric-trend trend-up">
-                  Optimal performance
-                </div>
-              </div>
-              <div className="metric-icon" style={{ color: '#10b981' }}>
-                <CheckCircle size={24} />
-              </div>
-            </div>
 
-            <div className="metric-card">
-              <div className="metric-info">
-                <h5>Pending Drip Queue</h5>
-                <div className="metric-value">{stats.pending}</div>
-                <div className="metric-trend" style={{ color: '#d97706' }}>
-                  Waiting to dispatch
-                </div>
-              </div>
-              <div className="metric-icon" style={{ color: '#d97706' }}>
-                <Clock size={24} />
-              </div>
-            </div>
-          </div>
-
-          <div className="dashboard-row">
-            {/* Lead Arrival Charts Panel */}
-            <div className="card-panel">
-              <div className="card-header">
-                <h3>Leads Received Trend</h3>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Last 7 Days</span>
-              </div>
-              <div style={{ width: '100%', height: 260 }}>
-                {loading ? (
-                  <div className="spinner-container">
-                    <div className="spinner" />
-                    <p>Fetching chart data...</p>
+              {/* Metrics Grid */}
+              <div className="cp-metrics-grid">
+                {/* Total Impressions */}
+                <div className="cp-metric-card">
+                  <div className="cp-metric-left">
+                    <div className="cp-metric-icon impressions">
+                      <Eye size={20} />
+                    </div>
+                    <div className="cp-metric-info">
+                      <h5>Total Impressions</h5>
+                      <div className="cp-metric-value">{formatNum(campaignMetrics.totalImpressions)}</div>
+                    </div>
                   </div>
+                </div>
+
+                {/* Total Clicks */}
+                <div className="cp-metric-card">
+                  <div className="cp-metric-left">
+                    <div className="cp-metric-icon clicks">
+                      <MousePointer size={20} />
+                    </div>
+                    <div className="cp-metric-info">
+                      <h5>Total Clicks</h5>
+                      <div className="cp-metric-value">{formatNum(campaignMetrics.totalClicks)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Average CTR */}
+                <div className="cp-metric-card">
+                  <div className="cp-metric-left">
+                    <div className="cp-metric-icon ctr">
+                      <TrendingUp size={20} />
+                    </div>
+                    <div className="cp-metric-info">
+                      <h5>Average CTR</h5>
+                      <div className="cp-metric-value">{campaignMetrics.avgCTR}%</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Campaigns */}
+                <div className="cp-metric-card">
+                  <div className="cp-metric-left">
+                    <div className="cp-metric-icon campaigns">
+                      <Megaphone size={20} />
+                    </div>
+                    <div className="cp-metric-info">
+                      <h5>Total Campaigns</h5>
+                      <div className="cp-metric-value">{campaignMetrics.totalCampaigns}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Container */}
+              <div className="cp-table-wrapper">
+                {/* Filter Bar */}
+                <div className="cp-filter-bar">
+                  <div className="cp-status live" style={{ padding: '6px 16px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500', fontSize: '0.85rem' }}>
+                    <span className="cp-status-dot" />
+                    Live
+                  </div>
+
+                  <div className="cp-date-range-container" style={{ display: 'flex', gap: '10px', alignItems: 'center', border: '1px solid var(--nbh-border)', padding: '6px 16px', borderRadius: '8px', background: '#f8f9fb' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Choose Date Range:</span>
+                    <input
+                      type="date"
+                      className="cp-date-input"
+                      value={campaignStartDate}
+                      onChange={(e) => { setCampaignStartDate(e.target.value); setCurrentPage(1); }}
+                      style={{ padding: '4px 8px', border: 'none', background: 'transparent', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem', cursor: 'pointer' }}
+                    />
+                    <span style={{ color: 'var(--text-muted)' }}>to</span>
+                    <input
+                      type="date"
+                      className="cp-date-input"
+                      value={campaignEndDate}
+                      onChange={(e) => { setCampaignEndDate(e.target.value); setCurrentPage(1); }}
+                      style={{ padding: '4px 8px', border: 'none', background: 'transparent', outline: 'none', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.85rem', cursor: 'pointer' }}
+                    />
+                  </div>
+
+                  <button className="cp-export-btn" onClick={handleExportCampaigns}>
+                    <Download size={18} />
+                    Export
+                  </button>
+
+                  <button className="cp-apply-btn" onClick={() => setCurrentPage(1)}>
+                    <Filter size={16} />
+                    Apply
+                  </button>
+                </div>
+
+                {/* Data Table */}
+                <div className="cp-table-container">
+                  <table className="cp-table">
+                    <thead>
+                      <tr>
+                        {activeEventId ? (
+                          <>
+                            <th>Event ID</th>
+                            <th>Brand Name</th>
+                            <th>Date</th>
+                            <th>Impressions</th>
+                            <th>Clicks</th>
+                            <th>CTR</th>
+                            <th>Status</th>
+                          </>
+                        ) : (
+                          <>
+                            <th>Event ID</th>
+                            <th className="sortable">Event Date ↕</th>
+                            <th>Impressions</th>
+                            <th>Clicks</th>
+                            <th>Event status</th>
+                            <th>Campaign Start</th>
+                            <th>Brand Name</th>
+                            <th>Imp Req</th>
+                            <th>Req CTR</th>
+                            <th>Click Req</th>
+                            <th>CTR</th>
+                            <th></th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map((row, idx) => (
+                        <tr key={row.eventId + (row.isDayRow ? row.date : '') + idx}>
+                          {row.isDayRow ? (
+                            <>
+                              <td className="col-event-id">{row.eventId}</td>
+                              <td>{row.brandName}</td>
+                              <td>{row.date}</td>
+                              <td className="col-impressions">{formatNum(row.impressions)}</td>
+                              <td className="col-clicks">{formatNum(row.clicks)}</td>
+                              <td className="col-ctr">{row.ctr}</td>
+                              <td>
+                                <span className="cp-status live">
+                                  <span className="cp-status-dot" />
+                                  Live
+                                </span>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="col-event-id">{row.eventId}</td>
+                              <td>{row.latestDate || row.campaignStart}</td>
+                              <td className="col-impressions">{formatNum(row.totalImpressions)}</td>
+                              <td className="col-clicks">{formatNum(row.totalClicks)}</td>
+                              <td>
+                                <span className={`cp-status ${row.eventStatus.toLowerCase()}`}>
+                                  <span className="cp-status-dot" />
+                                  {row.eventStatus}
+                                </span>
+                              </td>
+                              <td>{row.campaignStart}</td>
+                              <td>{row.brandName}</td>
+                              <td className="col-imp-req">{formatNum(Math.round(row.impReq))}</td>
+                              <td className="col-req-ctr">{row.reqCTR}</td>
+                              <td className="col-click-req">{formatNum(Math.round(row.clickReq))}</td>
+                              <td className="col-ctr">{row.ctr}</td>
+                              <td>
+                                <button className="cp-actions-btn" title="More actions">
+                                  <MoreVertical size={18} />
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                      {paginatedData.length === 0 && (
+                        <tr>
+                          <td colSpan={activeEventId ? "7" : "12"} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                            No data found matching current filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="cp-pagination">
+                  <span className="cp-pagination-info">
+                    Showing {tableData.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, tableData.length)} of {tableData.length} entries
+                  </span>
+                  <div className="cp-pagination-controls">
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                      style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'white', color: 'var(--text-primary)', fontFamily: 'inherit', marginRight: '10px' }}
+                    >
+                      {[7, 10, 20, 50].filter(n => n < tableData.length).map(n => (
+                        <option key={n} value={n}>{n} / page</option>
+                      ))}
+                      <option value={Math.max(tableData.length, 1)}>All ({tableData.length})</option>
+                    </select>
+                    <button
+                      className="cp-page-btn"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    {Array.from({ length: Math.min(totalPages, 4) }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        className={`cp-page-btn ${currentPage === page ? 'active' : ''}`}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      className="cp-page-btn"
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            /* ═══════════ LEADS VIEW (Existing Dashboard) ═══════════ */
+            <>
+              {/* Metrics */}
+              <div className="metrics-grid">
+                <div className="metric-card">
+                  <div className="metric-info">
+                    <h5>Total Leads Processed</h5>
+                    <div className="metric-value">{leadsStats.total}</div>
+                    <div className="metric-trend trend-up">+12% this week</div>
+                  </div>
+                  <div className="metric-icon"><Users size={24} /></div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-info">
+                    <h5>Salesforce Sync Success</h5>
+                    <div className="metric-value">{leadsStats.successRate}%</div>
+                    <div className="metric-trend trend-up">Optimal performance</div>
+                  </div>
+                  <div className="metric-icon" style={{ color: '#10b981' }}><CheckCircle size={24} /></div>
+                </div>
+                <div className="metric-card">
+                  <div className="metric-info">
+                    <h5>Pending Drip Queue</h5>
+                    <div className="metric-value">{leadsStats.pending}</div>
+                    <div className="metric-trend" style={{ color: '#d97706' }}>Waiting to dispatch</div>
+                  </div>
+                  <div className="metric-icon" style={{ color: '#d97706' }}><Clock size={24} /></div>
+                </div>
+              </div>
+
+              <div className="dashboard-row">
+                {/* Chart */}
+                <div className="card-panel">
+                  <div className="card-header">
+                    <h3>Leads Received Trend</h3>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Last 7 Days</span>
+                  </div>
+                  <div style={{ width: '100%', height: 260 }}>
+                    {loading ? (
+                      <div className="spinner-container"><div className="spinner" /><p>Fetching chart data...</p></div>
+                    ) : (
+                      <ResponsiveContainer>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
+                          <YAxis stroke="#94a3b8" fontSize={12} />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="leads" stroke="var(--nbh-teal)" strokeWidth={3} activeDot={{ r: 8 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* Drip Config */}
+                <div className="card-panel">
+                  <div className="card-header"><h3>Drip Configuration</h3></div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div className="config-setting-row">
+                      <div className="setting-info"><h4>Min Drip Delay</h4><p>Minimum delay before next push</p></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="number" className="filter-select" style={{ width: '70px', padding: '6px' }} value={minDelay} onChange={(e) => setMinDelay(Number(e.target.value))} />
+                        <span style={{ fontSize: '0.9rem' }}>mins</span>
+                      </div>
+                    </div>
+                    <div className="config-setting-row">
+                      <div className="setting-info"><h4>Max Drip Delay</h4><p>Maximum delay before next push</p></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input type="number" className="filter-select" style={{ width: '70px', padding: '6px' }} value={maxDelay} onChange={(e) => setMaxDelay(Number(e.target.value))} />
+                        <span style={{ fontSize: '0.9rem' }}>{campaign === 'tvs' ? 'mins' : 'hrs'}</span>
+                      </div>
+                    </div>
+                    <div className="config-setting-row">
+                      <div className="setting-info"><h4>Automation Engine</h4><p>Main cron/scheduler running</p></div>
+                      <span className="status-badge success">Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Leads Table */}
+              <div className="card-panel">
+                <div className="card-header" style={{ marginBottom: '24px' }}>
+                  <h3>Live Ingestion Log</h3>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button onClick={() => fetchLeads(campaign)} className="card-action-btn" style={{ padding: '10px 20px' }} disabled={loading}>
+                      <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                      <span>Refresh Sync</span>
+                    </button>
+                    <button onClick={handleExportLeads} className="form-button" style={{ width: 'auto', padding: '10px 20px' }}>
+                      <Download size={18} />
+                      <span>Export to Excel</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="filter-bar">
+                  <div className="input-wrapper filter-search">
+                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-secondary)' }} />
+                    <input type="text" className="form-input" placeholder="Search by name, phone..." style={{ paddingLeft: '40px' }} value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </div>
+                  <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="All">All Ingestion Statuses</option>
+                    <option value="Success">Success (Sync)</option>
+                    <option value="Failed">Failed (Sync)</option>
+                  </select>
+                </div>
+
+                {loading ? (
+                  <div className="spinner-container"><div className="spinner" /><p>Syncing live database rows from Google Sheet...</p></div>
                 ) : (
-                  <ResponsiveContainer>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="date" stroke="#94a3b8" fontSize={12} />
-                      <YAxis stroke="#94a3b8" fontSize={12} />
-                      <Tooltip />
-                      <Line 
-                        type="monotone" 
-                        dataKey="leads" 
-                        stroke="var(--nbh-teal)" 
-                        strokeWidth={3} 
-                        activeDot={{ r: 8 }} 
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div className="table-container">
+                    <table className="nbh-table">
+                      <thead>
+                        <tr>
+                          <th>Lead Name</th>
+                          <th>Mobile</th>
+                          <th>Email Address</th>
+                          <th>Region</th>
+                          <th>Preference (20% logic)</th>
+                          <th>Ingestion Status</th>
+                          <th>Sync Timestamp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLeads.map((lead, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: '600' }}>{lead.name}</td>
+                            <td>{lead.phone}</td>
+                            <td>{lead.email || '—'}</td>
+                            <td>{lead.city}</td>
+                            <td>
+                              <span className="campaign-badge" style={{ backgroundColor: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#f1f5f9' : 'var(--nbh-teal-light)', color: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#64748b' : 'var(--nbh-teal)' }}>
+                                {lead.subSource}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`status-badge ${lead.status === 'Success' ? 'success' : 'failed'}`}>{lead.status}</span>
+                            </td>
+                            <td style={{ color: 'var(--text-secondary)' }}>{lead.timestamp}</td>
+                          </tr>
+                        ))}
+                        {filteredLeads.length === 0 && (
+                          <tr>
+                            <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
+                              No leads found matching current filters.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
-            </div>
-
-            {/* Drip settings component */}
-            <div className="card-panel">
-              <div className="card-header">
-                <h3>Drip Configuration</h3>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div className="config-setting-row">
-                  <div className="setting-info">
-                    <h4>Min Drip Delay</h4>
-                    <p>Minimum delay before next push</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input 
-                      type="number" 
-                      className="filter-select"
-                      style={{ width: '70px', padding: '6px' }}
-                      value={minDelay}
-                      onChange={(e) => setMinDelay(Number(e.target.value))}
-                    />
-                    <span style={{ fontSize: '0.9rem' }}>mins</span>
-                  </div>
-                </div>
-
-                <div className="config-setting-row">
-                  <div className="setting-info">
-                    <h4>Max Drip Delay</h4>
-                    <p>Maximum delay before next push</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input 
-                      type="number" 
-                      className="filter-select"
-                      style={{ width: '70px', padding: '6px' }}
-                      value={maxDelay}
-                      onChange={(e) => setMaxDelay(Number(e.target.value))}
-                    />
-                    <span style={{ fontSize: '0.9rem' }}>{campaign === 'tvs' ? 'mins' : 'hrs'}</span>
-                  </div>
-                </div>
-
-                <div className="config-setting-row">
-                  <div className="setting-info">
-                    <h4>Automation Engine</h4>
-                    <p>Main cron/scheduler running</p>
-                  </div>
-                  <span className="status-badge success">
-                    Active
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Leads Data Table Section */}
-          <div className="card-panel">
-            <div className="card-header" style={{ marginBottom: '24px' }}>
-              <h3>Live Ingestion Log</h3>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => fetchLeads(campaign)} className="card-action-btn" style={{ padding: '10px 20px' }} disabled={loading}>
-                  <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-                  <span>Refresh Sync</span>
-                </button>
-                <button onClick={handleExportExcel} className="form-button" style={{ width: 'auto', padding: '10px 20px' }}>
-                  <Download size={18} />
-                  <span>Export to Excel</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter bar */}
-            <div className="filter-bar">
-              <div className="input-wrapper filter-search">
-                <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-secondary)' }} />
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Search by name, phone..." 
-                  style={{ paddingLeft: '40px' }}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-
-              <select 
-                className="filter-select"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="All">All Ingestion Statuses</option>
-                <option value="Success">Success (Sync)</option>
-                <option value="Failed">Failed (Sync)</option>
-              </select>
-            </div>
-
-            {loading ? (
-              <div className="spinner-container">
-                <div className="spinner" />
-                <p>Syncing live database rows from Google Sheet...</p>
-              </div>
-            ) : (
-              <div className="table-container">
-                <table className="nbh-table">
-                  <thead>
-                    <tr>
-                      <th>Lead Name</th>
-                      <th>Mobile</th>
-                      <th>Email Address</th>
-                      <th>Region</th>
-                      <th>Preference (20% logic)</th>
-                      <th>Ingestion Status</th>
-                      <th>Sync Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLeads.map((lead, idx) => (
-                      <tr key={idx}>
-                        <td style={{ fontWeight: '600' }}>{lead.name}</td>
-                        <td>{lead.phone}</td>
-                        <td>{lead.email || '—'}</td>
-                        <td>{lead.city}</td>
-                        <td>
-                          <span className="campaign-badge" style={{ backgroundColor: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#f1f5f9' : 'var(--nbh-teal-light)', color: lead.subSource === 'Digital' || lead.subSource === 'Gmail Fetch' || lead.subSource === 'Sheet Backup' ? '#64748b' : 'var(--nbh-teal)' }}>
-                            {lead.subSource}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`status-badge ${lead.status === 'Success' ? 'success' : 'failed'}`}>
-                            {lead.status}
-                          </span>
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{lead.timestamp}</td>
-                      </tr>
-                    ))}
-                    {filteredLeads.length === 0 && (
-                      <tr>
-                        <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: 'var(--text-secondary)' }}>
-                          No leads found matching current filters.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </section>
+            </>
+          )}
+        </div>
       </main>
     </div>
   );
